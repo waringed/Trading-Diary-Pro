@@ -118,18 +118,18 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({ stats }) => {
                 </div>
             </div>
 
-            {/* Col 3: Monthly & Extremes */}
+            {/* Col 3: Records & Monthly (Swapped) */}
             <div className="space-y-4">
-                 <div>
-                   <h4 className="text-base font-semibold text-slate-200 mb-2 border-b border-slate-700 pb-2">Promedios Mensuales</h4>
-                   <StatRow label="Ganancia Mensual" valDollar={stats.avgWinMonthlyDollar} valPerc={stats.avgWinMonthlyPercent} isPositive={true} />
-                   <StatRow label="Pérdida Mensual" valDollar={stats.avgLossMonthlyDollar} valPerc={stats.avgLossMonthlyPercent} isPositive={false} />
-                </div>
-
                 <div>
                    <h4 className="text-base font-semibold text-slate-200 mb-2 border-b border-slate-700 pb-2">Récords Diarios</h4>
                    <StatRow label="Mejor Día" valDollar={stats.maxWinDailyDollar} valPerc={stats.maxWinDailyPercent} isPositive={true} />
                    <StatRow label="Peor Día" valDollar={stats.maxLossDailyDollar} valPerc={stats.maxLossDailyPercent} isPositive={false} />
+                </div>
+
+                 <div>
+                   <h4 className="text-base font-semibold text-slate-200 mb-2 border-b border-slate-700 pb-2">Promedios Mensuales</h4>
+                   <StatRow label="Ganancia Mensual" valDollar={stats.avgWinMonthlyDollar} valPerc={stats.avgWinMonthlyPercent} isPositive={true} />
+                   <StatRow label="Pérdida Mensual" valDollar={stats.avgLossMonthlyDollar} valPerc={stats.avgLossMonthlyPercent} isPositive={false} />
                 </div>
             </div>
 
