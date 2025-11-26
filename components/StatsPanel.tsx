@@ -97,9 +97,14 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({ stats }) => {
                         </div>
                     </div>
 
-                    <span className={`text-2xl font-semibold ${stats.avgGeneralDollar >= 0 ? 'text-blue-400' : 'text-slate-400'}`}>
-                        {formatCurrency(stats.avgGeneralDollar)}
-                    </span>
+                    <div className="text-right">
+                        <span className={`block text-2xl font-semibold ${stats.avgGeneralDollar >= 0 ? 'text-blue-400' : 'text-slate-400'}`}>
+                            {formatCurrency(stats.avgGeneralDollar)}
+                        </span>
+                        <span className="block text-base text-slate-500">
+                            {formatPercent(stats.avgGeneralPercent)}
+                        </span>
+                    </div>
                 </div>
             </div>
 
