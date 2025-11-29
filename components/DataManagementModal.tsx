@@ -1,6 +1,6 @@
+
 import React, { useRef, useState } from 'react';
 import { TradeEntry, AppConfig, CalculatedDay } from '../types';
-import { formatCurrency, formatPercent } from '../utils/calculations';
 
 interface DataManagementModalProps {
   isOpen: boolean;
@@ -12,7 +12,7 @@ interface DataManagementModalProps {
 }
 
 export const DataManagementModal: React.FC<DataManagementModalProps> = ({ 
-  isOpen, onClose, entries, config, processedData, onImport 
+  isOpen, onClose, entries, config, processedData, onImport
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +31,7 @@ export const DataManagementModal: React.FC<DataManagementModalProps> = ({
     // Define Headers
     const headers = [
       "Fecha",
+      "N° Ops", // Added New Column
       "Semana",
       "Mes",
       "Capital Inicial Diario",
@@ -48,6 +49,7 @@ export const DataManagementModal: React.FC<DataManagementModalProps> = ({
     // Map Data to CSV Rows
     const rows = [...processedData].reverse().map(day => [
       day.date,
+      day.tradeCount || 0, // Added Data Value
       day.weekId,
       day.monthId,
       day.initialCapitalDaily.toFixed(2),
@@ -274,7 +276,6 @@ export const DataManagementModal: React.FC<DataManagementModalProps> = ({
                 </div>
             </div>
           </div>
-
         </div>
         <div className="bg-slate-900 p-4 flex justify-end">
             <button onClick={onClose} className="text-slate-400 hover:text-white font-medium text-sm">Cerrar</button>

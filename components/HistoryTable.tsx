@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { CalculatedDay, PeriodSummary } from '../types';
 import { formatCurrency, formatPercent } from '../utils/calculations';
@@ -23,6 +24,9 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
+  // Tooltip State
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; content: string } | null>(null);
+
   // --- DATA PREPARATION ---
   
   // Decide which dataset to use based on viewMode
@@ -38,7 +42,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
       break;
   }
 
-  // Filter Logic (Only applies strictly to Daily mode for now, as summaries have different ID formats)
+  // Filter Logic
   const filteredData = rawData.filter((item) => {
     if (viewMode === 'daily') {
        const day = item as CalculatedDay;
@@ -46,7 +50,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
        if (endDate && day.date > endDate) return false;
        return true;
     }
-    return true; // No filtering for aggregated views yet
+    return true; 
   });
 
   // Calculate total pages
@@ -95,7 +99,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
       {/* Header Area: Title, Tabs and Filters */}
       <div className="px-6 py-4 border-b border-slate-700 bg-slate-800/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h3 className="text-lg font-semibold text-slate-100">Histórico de Operaciones</h3>
+            <h3 className="text-lg font-semibold text-slate-100">Histórico del Capital</h3>
           </div>
           
           {/* View Mode Tabs */}
@@ -156,6 +160,8 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
                 // --- DAILY COLUMNS ---
                 <tr>
                     <th className="px-5 py-4">Fecha</th>
+                    <th className="px-5 py-4 text-center">N° Ops</th>
+                    <th className="px-5 py-4 text-center">DEPO./RETI.</th>
                     <th className="px-5 py-4 hidden sm:table-cell">Cap. Inicial</th>
                     <th className="px-5 py-4">Cap. Final</th>
                     <th className="px-5 py-4">P/L Diario</th>
@@ -168,8 +174,12 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
                 // --- AGGREGATED COLUMNS ---
                 <tr>
                     <th className="px-5 py-4">Periodo</th>
-                    <th className="px-5 py-4 text-center">N° Ops</th>
-                    <th className="px-5 py-4 text-center">Efectividad</th>
+                    <th className="px-5 py-4 text-center text-slate-400">N° Ops</th>
+                    <th className="px-5 py-4 text-center">DEPO./RETI.</th>
+                    <th className="px-5 py-4 text-slate-400 hidden sm:table-cell">Cap. Inicial</th>
+                    <th className="px-5 py-4">Cap. Final</th>
+                    <th className="px-5 py-4 text-center">N° Días</th>
+                    <th className="px-5 py-4 text-center">Efectividad Días</th>
                     <th className="px-5 py-4 text-right">P/L ($)</th>
                     <th className="px-5 py-4 text-right">P/L (%)</th>
                 </tr>
@@ -180,14 +190,25 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
                 // RENDER DAILY ROW
                 if (viewMode === 'daily') {
                     const day = item as CalculatedDay;
+                    const hasNotes = day.notes && day.notes.trim().length > 0;
+                    
+                    // Cash Flow Visualization
+                    let cashFlowDisplay = <span className="text-slate-600">-</span>;
+                    if (day.deposit > 0) {
+                        cashFlowDisplay = <span className="text-emerald-400 font-bold" title={`Depósito: +${day.deposit}`}>+{day.deposit}</span>;
+                    } else if (day.withdrawal > 0) {
+                        cashFlowDisplay = <span className="text-rose-400 font-bold" title={`Retiro: -${day.withdrawal}`}>-{day.withdrawal}</span>;
+                    }
+
                     return (
                         <tr key={day.id} className="border-b border-slate-700 hover:bg-slate-700/30 transition-colors">
                             <td className="px-5 py-4 font-medium text-slate-200 whitespace-nowrap">{day.date}</td>
+                            <td className="px-5 py-4 text-center text-slate-400">{day.tradeCount || 0}</td>
+                            <td className="px-5 py-4 text-center">
+                                {cashFlowDisplay}
+                            </td>
                             <td className="px-5 py-4 text-slate-400 hidden sm:table-cell">
                                 {formatCurrency(day.initialCapitalDaily)}
-                                {day.isManualInitial && (
-                                    <span className="ml-1 text-blue-400 text-sm" title="Editado manualmente">*</span>
-                                )}
                             </td>
                             <td className="px-5 py-4 font-bold text-white">{formatCurrency(day.finalCapital)}</td>
                             <td className={`px-5 py-4 ${getPLColor(day.plDailyDollar)}`}>
@@ -204,6 +225,28 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
                             </td>
                             <td className="px-5 py-4 text-right">
                                 <div className="flex items-center justify-end gap-3">
+                                    {/* NOTES ICON WITH FIXED TOOLTIP LOGIC */}
+                                    {hasNotes && (
+                                        <div 
+                                            className="flex items-center"
+                                            onMouseEnter={(e) => {
+                                                const rect = e.currentTarget.getBoundingClientRect();
+                                                setTooltip({
+                                                    x: rect.left + (rect.width / 2),
+                                                    y: rect.top,
+                                                    content: day.notes || ''
+                                                });
+                                            }}
+                                            onMouseLeave={() => setTooltip(null)}
+                                        >
+                                            <span className="cursor-help text-slate-500 hover:text-amber-400 transition-colors">
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                </svg>
+                                            </span>
+                                        </div>
+                                    )}
+
                                     <button 
                                     type="button"
                                     onClick={(e) => {
@@ -237,9 +280,20 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
                 } else {
                     // RENDER SUMMARY ROW
                     const summary = item as PeriodSummary;
+                    const netFlow = summary.totalDeposits - summary.totalWithdrawals;
+                    
+                    // Cash Flow Display Logic
+                    let flowDisplay = <span className="text-slate-600">-</span>;
+                    if (netFlow > 0) flowDisplay = <span className="text-emerald-400 font-bold">+{formatCurrency(netFlow)}</span>;
+                    if (netFlow < 0) flowDisplay = <span className="text-rose-400 font-bold">{formatCurrency(netFlow)}</span>;
+
                     return (
                         <tr key={summary.periodId} className="border-b border-slate-700 hover:bg-slate-700/30 transition-colors">
                             <td className="px-5 py-5 font-medium text-slate-200">{summary.label}</td>
+                            <td className="px-5 py-5 text-center text-slate-400">{summary.totalOperations}</td>
+                            <td className="px-5 py-5 text-center">{flowDisplay}</td>
+                            <td className="px-5 py-5 text-slate-400 hidden sm:table-cell">{formatCurrency(summary.startCapital)}</td>
+                            <td className="px-5 py-5 font-bold text-white">{formatCurrency(summary.endCapital)}</td>
                             <td className="px-5 py-5 text-center text-slate-400">{summary.tradeCount}</td>
                             <td className="px-5 py-5 text-center">
                                 <span className="px-3 py-1.5 rounded bg-slate-800 text-slate-200 border border-slate-600 text-sm">
@@ -260,7 +314,7 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
             {/* Empty State */}
             {filteredData.length === 0 && (
               <tr>
-                <td colSpan={viewMode === 'daily' ? 8 : 5} className="px-6 py-8 text-center text-slate-500 italic text-lg">
+                <td colSpan={viewMode === 'daily' ? 10 : 9} className="px-6 py-8 text-center text-slate-500 italic text-lg">
                   {rawData.length === 0 
                     ? "No hay registros disponibles." 
                     : "No se encontraron registros en el filtro seleccionado."}
@@ -325,6 +379,23 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* FIXED TOOLTIP RENDERED OUTSIDE OF TABLE FLOW */}
+      {tooltip && (
+          <div 
+            className="fixed z-[100] p-4 bg-slate-800 border border-slate-600 rounded-lg shadow-2xl text-sm text-slate-200 pointer-events-none max-w-sm animate-in fade-in zoom-in duration-150"
+            style={{
+                top: tooltip.y - 12, 
+                left: tooltip.x,
+                transform: 'translate(-90%, -100%)' // Position above and to the left of the cursor
+            }}
+          >
+            <p className="font-bold text-amber-400 text-xs mb-1 uppercase tracking-wider">Notas del día</p>
+            <div className="leading-relaxed text-xs whitespace-pre-wrap">{tooltip.content}</div>
+            {/* Arrow */}
+            <div className="absolute top-full right-4 -mt-1 border-8 border-transparent border-t-slate-600"></div>
+          </div>
       )}
     </div>
   );

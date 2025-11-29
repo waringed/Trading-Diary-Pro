@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { TradeEntry } from '../types';
 
@@ -5,20 +6,26 @@ interface EditEntryModalProps {
   entry: TradeEntry | null;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (id: string, newDate: string, newCapital: number, initialCapital?: number) => void;
+  onSave: (id: string, newDate: string, newCapital: number, deposit: number, withdrawal: number, notes?: string, tradeCount?: number) => void;
 }
 
 export const EditEntryModal: React.FC<EditEntryModalProps> = ({ entry, isOpen, onClose, onSave }) => {
   const [date, setDate] = useState('');
   const [capital, setCapital] = useState('');
-  const [initialCapital, setInitialCapital] = useState('');
+  const [tradeCount, setTradeCount] = useState('');
+  const [deposit, setDeposit] = useState('');
+  const [withdrawal, setWithdrawal] = useState('');
+  const [notes, setNotes] = useState('');
   const dateInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (entry) {
       setDate(entry.date);
       setCapital(entry.finalCapital.toString());
-      setInitialCapital(entry.initialCapital ? entry.initialCapital.toString() : '');
+      setTradeCount(entry.tradeCount !== undefined ? entry.tradeCount.toString() : '');
+      setDeposit(entry.deposit && entry.deposit > 0 ? entry.deposit.toString() : '');
+      setWithdrawal(entry.withdrawal && entry.withdrawal > 0 ? entry.withdrawal.toString() : '');
+      setNotes(entry.notes || '');
     }
   }, [entry]);
 
@@ -26,8 +33,10 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({ entry, isOpen, o
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const initCap = initialCapital ? parseFloat(initialCapital) : undefined;
-    onSave(entry.id, date, parseFloat(capital), initCap);
+    const trades = tradeCount ? parseInt(tradeCount) : 0;
+    const dep = deposit ? parseFloat(deposit) : 0;
+    const withdr = withdrawal ? parseFloat(withdrawal) : 0;
+    onSave(entry.id, date, parseFloat(capital), dep, withdr, notes, trades);
     onClose();
   };
 
@@ -45,7 +54,7 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({ entry, isOpen, o
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="bg-slate-800 border border-slate-700 rounded-xl shadow-2xl w-full max-w-sm">
+      <div className="bg-slate-800 border border-slate-700 rounded-xl shadow-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b border-slate-700 flex justify-between items-center">
           <h2 className="text-xl font-bold text-white">Editar Registro</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-white">✕</button>
@@ -70,28 +79,65 @@ export const EditEntryModal: React.FC<EditEntryModalProps> = ({ entry, isOpen, o
             </div>
           </div>
           
-          <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">Capital Inicial ($)</label>
-            <input
-              type="number"
-              step="0.01"
-              value={initialCapital}
-              placeholder="Automático (Día anterior)"
-              onChange={(e) => setInitialCapital(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-slate-600"
-            />
-            <p className="text-xs text-slate-500 mt-1">Déjalo vacío para usar el cierre del día anterior.</p>
+          <div className="grid grid-cols-2 gap-3">
+             <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1">Capital Final ($)</label>
+                <input
+                type="number"
+                required
+                step="0.01"
+                value={capital}
+                onChange={(e) => setCapital(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+             </div>
+             <div>
+                <label className="block text-sm font-medium text-slate-400 mb-1">N° Operaciones</label>
+                <input
+                type="number"
+                min="0"
+                step="1"
+                value={tradeCount}
+                onChange={(e) => setTradeCount(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-3 bg-slate-900/40 p-3 rounded-lg border border-slate-800">
+             <div>
+                <label className="block text-xs font-medium text-emerald-400 mb-1">Depósito</label>
+                <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={deposit}
+                    onChange={(e) => setDeposit(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-slate-100 text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+             </div>
+             <div>
+                <label className="block text-xs font-medium text-rose-400 mb-1">Retiro</label>
+                <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={withdrawal}
+                    onChange={(e) => setWithdrawal(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-slate-100 text-sm focus:outline-none focus:ring-1 focus:ring-rose-500"
+                />
+             </div>
+        </div>
+
           <div>
-            <label className="block text-sm font-medium text-slate-400 mb-1">Capital Final ($)</label>
-            <input
-              type="number"
-              required
-              step="0.01"
-              value={capital}
-              onChange={(e) => setCapital(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            <label className="block text-sm font-medium text-slate-400 mb-1">Notas / Lecciones</label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="¿Qué aprendiste hoy? (Errores, aciertos, emociones y sentimientos) #Hashtags"
+              className="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 h-24 resize-none text-sm"
             />
           </div>
           

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { GlobalStats } from '../types';
 import { formatCurrency, formatPercent } from '../utils/calculations';
@@ -8,7 +9,7 @@ interface StatsPanelProps {
 }
 
 export const StatsPanel: React.FC<StatsPanelProps> = ({ stats }) => {
-  const StatRow = ({ label, valDollar, valPerc, isPositive }: { label: string, valDollar: number, valPerc: number, isPositive?: boolean }) => {
+  const StatRow = ({ label, valDollar, valPerc, isPositive }: { label: string, valDollar: number, valPerc?: number, isPositive?: boolean }) => {
     // If isPositive is not provided, derive it from value
     const positive = isPositive !== undefined ? isPositive : valDollar >= 0;
     const colorClass = positive ? 'text-emerald-400' : 'text-rose-400';
@@ -20,7 +21,9 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({ stats }) => {
           <span className={`block text-xl font-semibold ${colorClass}`}>
             {formatCurrency(valDollar)}
           </span>
-          <span className="block text-base text-slate-500">{formatPercent(valPerc)}</span>
+          {valPerc !== undefined && (
+             <span className="block text-base text-slate-500">{formatPercent(valPerc)}</span>
+          )}
         </div>
       </div>
     );
@@ -34,11 +37,11 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({ stats }) => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
             
             {/* Col 1: Performance & Streaks */}
-            <div className="space-y-4">
+            <div className="space-y-6">
                 {/* Effectiveness Section */}
                 <div className="space-y-2 bg-slate-900/30 p-4 rounded-lg border border-slate-800">
                   <div className="flex justify-between items-end">
-                    <h4 className="text-base font-semibold text-slate-200">Efectividad Global</h4>
+                    <h4 className="text-base font-semibold text-slate-200">Efectividad Global (Días)</h4>
                     <span className="text-3xl font-bold text-blue-400">{formatPercent(stats.winRate)}</span>
                   </div>
                   
@@ -60,13 +63,35 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({ stats }) => {
                   <div className="flex justify-between text-sm text-slate-400 mt-1">
                     <span className="flex items-center gap-1">
                         <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                        {stats.winningDays} ganados
+                        {stats.winningDays} días ganados
                     </span>
                     <span className="flex items-center gap-1">
                         <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-                        {stats.losingDays} perdidos
+                        {stats.losingDays} días perdidos
                     </span>
                   </div>
+                </div>
+
+                {/* Total Days & Operations Section (Extract) */}
+                <div className="bg-slate-900/30 p-3 rounded-lg border border-slate-800 space-y-3">
+                   {/* Total Days */}
+                   <div className="flex justify-between items-center pb-3 border-b border-slate-700/50">
+                      <span className="text-slate-400 text-base">Total Días Operados</span>
+                      <div className="text-right">
+                        <span className="block text-xl font-semibold text-slate-200">
+                            {stats.winningDays + stats.losingDays}
+                        </span>
+                      </div>
+                   </div>
+                   {/* Total Ops */}
+                   <div className="flex justify-between items-center">
+                      <span className="text-slate-400 text-base">Total Operaciones</span>
+                      <div className="text-right">
+                        <span className="block text-xl font-semibold text-slate-200">
+                            {stats.totalTrades}
+                        </span>
+                      </div>
+                   </div>
                 </div>
 
                 {/* Streaks Section */}
@@ -110,16 +135,38 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({ stats }) => {
 
             {/* Col 2: Daily & Weekly Averages */}
             <div className="space-y-4">
+                {/* REMOVED OLD FUNDS MANAGEMENT SECTION */}
+
                 <div>
                    <h4 className="text-base font-semibold text-slate-200 mb-2 border-b border-slate-700 pb-2">Promedios Diarios</h4>
                    <StatRow label="Ganancia Promedio" valDollar={stats.avgWinDailyDollar} valPerc={stats.avgWinDailyPercent} isPositive={true} />
                    <StatRow label="Pérdida Promedio" valDollar={stats.avgLossDailyDollar} valPerc={stats.avgLossDailyPercent} isPositive={false} />
+                   
+                   {/* Ops Per Day */}
+                   <div className="flex justify-between items-center py-2 border-b border-slate-700/50 last:border-0">
+                      <span className="text-slate-400 text-base">Promedio Ops/Día</span>
+                      <div className="text-right">
+                        <span className="block text-xl font-semibold text-slate-200">
+                            {stats.avgTradesPerDay.toFixed(1)}
+                        </span>
+                      </div>
+                   </div>
                 </div>
 
                 <div>
                    <h4 className="text-base font-semibold text-slate-200 mb-2 border-b border-slate-700 pb-2">Promedios Semanales</h4>
                    <StatRow label="Ganancia Semanal" valDollar={stats.avgWinWeeklyDollar} valPerc={stats.avgWinWeeklyPercent} isPositive={true} />
                    <StatRow label="Pérdida Semanal" valDollar={stats.avgLossWeeklyDollar} valPerc={stats.avgLossWeeklyPercent} isPositive={false} />
+
+                   {/* Ops Per Week */}
+                   <div className="flex justify-between items-center py-2 border-b border-slate-700/50 last:border-0">
+                      <span className="text-slate-400 text-base">Promedio Ops/Semana</span>
+                      <div className="text-right">
+                        <span className="block text-xl font-semibold text-slate-200">
+                            {stats.avgTradesPerWeek.toFixed(1)}
+                        </span>
+                      </div>
+                   </div>
                 </div>
             </div>
 
@@ -129,12 +176,32 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({ stats }) => {
                    <h4 className="text-base font-semibold text-slate-200 mb-2 border-b border-slate-700 pb-2">Récords Diarios</h4>
                    <StatRow label="Mejor Día" valDollar={stats.maxWinDailyDollar} valPerc={stats.maxWinDailyPercent} isPositive={true} />
                    <StatRow label="Peor Día" valDollar={stats.maxLossDailyDollar} valPerc={stats.maxLossDailyPercent} isPositive={false} />
+                   
+                   {/* Max Ops Per Day */}
+                   <div className="flex justify-between items-center py-2 border-b border-slate-700/50 last:border-0">
+                      <span className="text-slate-400 text-base">Max Ops Día</span>
+                      <div className="text-right">
+                        <span className="block text-xl font-semibold text-slate-200">
+                            {stats.maxTradesPerDay}
+                        </span>
+                      </div>
+                   </div>
                 </div>
 
                  <div>
                    <h4 className="text-base font-semibold text-slate-200 mb-2 border-b border-slate-700 pb-2">Promedios Mensuales</h4>
                    <StatRow label="Ganancia Mensual" valDollar={stats.avgWinMonthlyDollar} valPerc={stats.avgWinMonthlyPercent} isPositive={true} />
                    <StatRow label="Pérdida Mensual" valDollar={stats.avgLossMonthlyDollar} valPerc={stats.avgLossMonthlyPercent} isPositive={false} />
+
+                   {/* Ops Per Month */}
+                   <div className="flex justify-between items-center py-2 border-b border-slate-700/50 last:border-0">
+                      <span className="text-slate-400 text-base">Promedio Ops/Mes</span>
+                      <div className="text-right">
+                        <span className="block text-xl font-semibold text-slate-200">
+                            {stats.avgTradesPerMonth.toFixed(1)}
+                        </span>
+                      </div>
+                   </div>
                 </div>
             </div>
 

@@ -1,3 +1,4 @@
+
 import { TradeEntry, AppConfig, CalculatedDay, GlobalStats, PeriodSummary } from '../types';
 
 // Helper to get ISO Week Label (Monday to Friday)
@@ -29,6 +30,9 @@ export const processEntries = (entries: TradeEntry[], config: AppConfig): Calcul
   let currentWeekId = '';
   let weekPLAccum = 0;
   let weekStartCapital = 0;
+  
+  // Track Net Invested Capital for accurate ROI (Initial + Deposits - Withdrawals)
+  let runningNetInvested = config.totalInitialCapital; 
 
   sorted.forEach((entry, index) => {
     const dateObj = new Date(entry.date);
@@ -43,20 +47,27 @@ export const processEntries = (entries: TradeEntry[], config: AppConfig): Calcul
     const quarter = Math.floor((localDate.getMonth() + 3) / 3);
     const quarterId = `${yearStr}-Q${quarter}`;
 
-    // 1. Determine Previous Day Capital (Daily Initial)
-    let prevFinal = config.totalInitialCapital;
-    let isManual = false;
-
-    if (entry.initialCapital !== undefined && entry.initialCapital !== null && !isNaN(entry.initialCapital)) {
-        prevFinal = entry.initialCapital;
-        isManual = true;
-    } else if (index > 0) {
-        prevFinal = sorted[index - 1].finalCapital;
+    // --- 1. Determine Previous Day Closing Capital ---
+    let prevClosing = config.totalInitialCapital;
+    if (index > 0) {
+        prevClosing = sorted[index - 1].finalCapital;
     }
 
-    // 2. Determine Month Start Capital
+    // --- 2. Handle Cash Flow (Deposits/Withdrawals) ---
+    const deposit = entry.deposit || 0;
+    const withdrawal = entry.withdrawal || 0;
+    
+    // Adjusted Start Capital for the day = Previous Close + Net Flow
+    const initialCapitalDaily = prevClosing + deposit - withdrawal;
+
+    // Update running invested capital
+    runningNetInvested += (deposit - withdrawal);
+
+    // --- 3. Determine Month Start Capital (Legacy override support + logic) ---
+    // Note: With the new cash flow logic, monthly overrides are less critical but kept for compatibility
     let monthStart = config.monthlyStartCapitals[monthKey];
     if (monthStart === undefined) {
+      // Find the last entry of the previous month
       const prevMonthEntries = calculated.filter(c => c.monthId < monthKey);
       if (prevMonthEntries.length > 0) {
         monthStart = prevMonthEntries[prevMonthEntries.length - 1].finalCapital;
@@ -65,21 +76,22 @@ export const processEntries = (entries: TradeEntry[], config: AppConfig): Calcul
       }
     }
 
-    // Daily Calculations
-    const plDailyDollar = entry.finalCapital - prevFinal;
-    const plDailyPercent = prevFinal !== 0 ? (plDailyDollar / prevFinal) * 100 : 0;
+    // --- 4. Daily Calculations ---
+    // P/L is the difference between Final Capital and what we started with (after adjustments)
+    const plDailyDollar = entry.finalCapital - initialCapitalDaily;
+    const plDailyPercent = initialCapitalDaily !== 0 ? (plDailyDollar / initialCapitalDaily) * 100 : 0;
 
-    // Week To Date Logic
+    // --- 5. Week To Date Logic ---
     if (weekId !== currentWeekId) {
         currentWeekId = weekId;
         weekPLAccum = 0;
-        // The start capital for the week is the initial capital of the first entry in that week
-        weekStartCapital = prevFinal;
+        // The start capital for the week is the initial capital of this day (first day of week)
+        weekStartCapital = initialCapitalDaily;
     }
     weekPLAccum += plDailyDollar;
     const plWeekPercent = weekStartCapital !== 0 ? (weekPLAccum / weekStartCapital) * 100 : 0;
 
-    // Accumulate Total P/L
+    // --- 6. Accumulate Total P/L ---
     totalPLAccum += plDailyDollar;
     
     if (!monthPLAccum[monthKey]) monthPLAccum[monthKey] = 0;
@@ -87,18 +99,25 @@ export const processEntries = (entries: TradeEntry[], config: AppConfig): Calcul
 
     // Month To Date P/L
     const plMonthDollar = monthPLAccum[monthKey];
+    // Month percent: We try to use monthStart, but if cash flow happened mid-month, this is approximate. 
+    // For strict accuracy, one would track monthStart adjusted by flows. 
+    // For simplicity, we keep using the static monthStart or dynamically updated base.
     const plMonthPercent = monthStart !== 0 ? (plMonthDollar / monthStart) * 100 : 0;
 
-    // Total To Date P/L
+    // Total To Date P/L (This is PURE Trading Performance)
     const plTotalDollar = totalPLAccum;
-    const plTotalPercent = config.totalInitialCapital !== 0 ? (plTotalDollar / config.totalInitialCapital) * 100 : 0;
+    // ROI based on Net Invested Capital
+    const plTotalPercent = runningNetInvested !== 0 ? (plTotalDollar / runningNetInvested) * 100 : 0;
 
     calculated.push({
       id: entry.id,
       date: entry.date,
       finalCapital: entry.finalCapital,
-      initialCapitalDaily: prevFinal,
-      isManualInitial: isManual,
+      initialCapitalDaily, 
+      deposit,
+      withdrawal,
+      tradeCount: entry.tradeCount !== undefined ? entry.tradeCount : 0, 
+      notes: entry.notes || '',
       plDailyDollar,
       plDailyPercent,
       
@@ -108,7 +127,9 @@ export const processEntries = (entries: TradeEntry[], config: AppConfig): Calcul
       initialCapitalMonthly: monthStart,
       plMonthToDateDollar: plMonthDollar,
       plMonthToDatePercent: plMonthPercent,
-      initialCapitalTotal: config.totalInitialCapital,
+      
+      // We store the running invested capital as the "Total Initial" basis for this point in time
+      initialCapitalTotal: runningNetInvested, 
       plTotalToDateDollar: plTotalDollar,
       plTotalToDatePercent: plTotalPercent,
       weekId,
@@ -130,11 +151,20 @@ export const calculatePeriodSummaries = (calculated: CalculatedDay[], periodKey:
   });
 
   const summaries: PeriodSummary[] = Object.keys(groups).map(key => {
+    // Sort ascending to find first and last day
     const days = groups[key].sort((a, b) => a.date.localeCompare(b.date));
+    
     const plDollar = days.reduce((sum, d) => sum + d.plDailyDollar, 0);
     const startCapital = days[0].initialCapitalDaily; 
+    const endCapital = days[days.length - 1].finalCapital;
+
     const plPercent = startCapital !== 0 ? (plDollar / startCapital) * 100 : 0;
     const wins = days.filter(d => d.plDailyDollar > 0).length;
+    const totalOps = days.reduce((sum, d) => sum + (d.tradeCount || 0), 0);
+    
+    // Aggregations
+    const totalDeposits = days.reduce((sum, d) => sum + (d.deposit || 0), 0);
+    const totalWithdrawals = days.reduce((sum, d) => sum + (d.withdrawal || 0), 0);
 
     return {
       periodId: key,
@@ -142,7 +172,12 @@ export const calculatePeriodSummaries = (calculated: CalculatedDay[], periodKey:
       plDollar,
       plPercent,
       winRate: (wins / days.length) * 100,
-      tradeCount: days.length
+      tradeCount: days.length, // This represents number of days recorded
+      totalOperations: totalOps,
+      totalDeposits,
+      totalWithdrawals,
+      startCapital,
+      endCapital
     };
   });
 
@@ -158,8 +193,11 @@ export const calculateGlobalStats = (days: CalculatedDay[], weeklySummaries: Per
   if (days.length === 0) {
     return {
       currentCapital: 0, totalInitialCapital: 0, totalPLDollar: 0, totalPLPercent: 0,
+      totalDeposits: 0, totalWithdrawals: 0, netCashFlow: 0,
+      startDate: '-', durationWeeks: 0, durationMonths: 0, durationYears: 0,
       maxConsecutiveWins: 0, maxConsecutiveLosses: 0,
       winningDays: 0, losingDays: 0, winRate: 0,
+      totalTrades: 0, avgTradesPerDay: 0, avgTradesPerWeek: 0, avgTradesPerMonth: 0, maxTradesPerDay: 0,
       avgWinDailyDollar: 0, avgWinDailyPercent: 0,
       avgLossDailyDollar: 0, avgLossDailyPercent: 0,
       avgWinWeeklyDollar: 0, avgWinWeeklyPercent: 0,
@@ -172,15 +210,44 @@ export const calculateGlobalStats = (days: CalculatedDay[], weeklySummaries: Per
     };
   }
 
-  // Days are in descending order (Newest first), we need chronological for streaks
+  // Days are in descending order (Newest first). 
+  // Get chronological order for streak calc and Date calc
   const chronDays = [...days].reverse();
+
+  // Cash Flow Totals
+  const totalDeposits = days.reduce((sum, d) => sum + (d.deposit || 0), 0);
+  const totalWithdrawals = days.reduce((sum, d) => sum + (d.withdrawal || 0), 0);
+  const netCashFlow = totalDeposits - totalWithdrawals;
+
+  // --- Duration Calculation ---
+  const firstDate = new Date(chronDays[0].date);
+  const lastDate = new Date(chronDays[chronDays.length - 1].date);
+  
+  // Diff in milliseconds
+  const diffTime = Math.abs(lastDate.getTime() - firstDate.getTime());
+  // Diff in days (Calendar days, not trading days)
+  const diffCalendarDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 to include first day
+
+  const durationWeeks = Math.max(0, (diffCalendarDays / 7));
+  const durationMonths = Math.max(0, (diffCalendarDays / 30.44)); // Avg days per month
+  const durationYears = Math.max(0, (diffCalendarDays / 365.25));
 
   let maxConsecutiveWins = 0;
   let maxConsecutiveLosses = 0;
   let currentWins = 0;
   let currentLosses = 0;
+  let totalTrades = 0;
+  let maxTradesPerDay = 0;
 
   chronDays.forEach(day => {
+    // Accumulate trades
+    const trades = day.tradeCount || 0;
+    totalTrades += trades;
+    
+    if (trades > maxTradesPerDay) {
+        maxTradesPerDay = trades;
+    }
+
     if (day.plDailyDollar > 0) {
         currentWins++;
         currentLosses = 0;
@@ -232,16 +299,38 @@ export const calculateGlobalStats = (days: CalculatedDay[], weeklySummaries: Per
   const avgLossMonthlyDollar = avg(losingMonths.map(m => m.plDollar));
   const avgLossMonthlyPercent = avg(losingMonths.map(m => m.plPercent));
 
+  // Avg Trades Calculation
+  const avgTradesPerDay = days.length > 0 ? totalTrades / days.length : 0;
+  const avgTradesPerWeek = weeklySummaries.length > 0 ? totalTrades / weeklySummaries.length : 0;
+  const avgTradesPerMonth = monthlySummaries.length > 0 ? totalTrades / monthlySummaries.length : 0;
+
   return {
     currentCapital: newestDay.finalCapital,
+    // totalInitialCapital now reflects the NET INVESTED CAPITAL (Initial + Flows)
     totalInitialCapital: newestDay.initialCapitalTotal,
     totalPLDollar: newestDay.plTotalToDateDollar,
     totalPLPercent: newestDay.plTotalToDatePercent,
+    
+    totalDeposits,
+    totalWithdrawals,
+    netCashFlow,
+
+    // Duration
+    startDate: chronDays[0].date,
+    durationWeeks,
+    durationMonths,
+    durationYears,
+
     maxConsecutiveWins,
     maxConsecutiveLosses,
     winningDays: winners.length,
     losingDays: losers.length,
     winRate: (winners.length / days.length) * 100,
+    totalTrades,
+    avgTradesPerDay,
+    avgTradesPerWeek,
+    avgTradesPerMonth,
+    maxTradesPerDay,
     avgWinDailyDollar, avgWinDailyPercent,
     avgLossDailyDollar, avgLossDailyPercent,
     avgWinWeeklyDollar, avgWinWeeklyPercent,

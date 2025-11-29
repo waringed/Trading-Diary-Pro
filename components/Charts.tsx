@@ -1,8 +1,9 @@
+
 import React, { useState, useMemo } from 'react';
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import { ResponsiveContainer, ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, TooltipProps } from 'recharts';
 import { CalculatedDay } from '../types';
 import { Card } from './ui/Card';
-import { formatCurrency } from '../utils/calculations';
+import { formatCurrency, formatPercent } from '../utils/calculations';
 
 interface ChartsProps {
   data: CalculatedDay[];
@@ -18,10 +19,20 @@ export const Charts: React.FC<ChartsProps> = ({ data }) => {
     // 1. Sort chronologically (Oldest -> Newest)
     const sorted = [...data].sort((a, b) => a.date.localeCompare(b.date));
     
-    if (viewMode === 'daily') return sorted;
+    if (viewMode === 'daily') {
+        // Map to include consistent keys for the tooltip
+        return sorted.map(d => ({
+            ...d,
+            chartChangeDollar: d.plDailyDollar,
+            chartChangePercent: d.plDailyPercent,
+            // Data for tooltip logic (even if not plotted as shapes)
+            flowDepositAmount: d.deposit,
+            flowWithdrawalAmount: d.withdrawal
+        }));
+    }
 
     // 2. Group by period and take the LAST entry of each group (Closing Capital)
-    const grouped = new Map<string, CalculatedDay>();
+    const grouped = new Map<string, CalculatedDay[]>();
     
     sorted.forEach(day => {
         let key = '';
@@ -31,12 +42,48 @@ export const Charts: React.FC<ChartsProps> = ({ data }) => {
             case 'quarterly': key = day.quarterId; break;
             case 'yearly': key = day.yearId; break;
         }
-        // Map.set always updates the value for the key. 
-        // Since we are iterating chronologically, the last one set is the end of the period.
-        grouped.set(key, day);
+        if (!grouped.has(key)) grouped.set(key, []);
+        grouped.get(key)?.push(day);
     });
 
-    return Array.from(grouped.values());
+    const result: any[] = [];
+    
+    grouped.forEach((days, key) => {
+        // Get last day for final capital status
+        const lastDay = days[days.length - 1];
+        
+        // Sum flows for the period to show in tooltip
+        const totalDep = days.reduce((sum, d) => sum + d.deposit, 0);
+        const totalWith = days.reduce((sum, d) => sum + d.withdrawal, 0);
+
+        result.push({
+            ...lastDay,
+            // For Aggregated views, we recalculate PL based on period accumulation
+            chartChangeDollar: viewMode === 'weekly' ? lastDay.plWeekToDateDollar : 
+                               viewMode === 'monthly' ? lastDay.plMonthToDateDollar : 0, 
+                               // Note: Quarterly/Yearly dynamic calculation handled below
+            chartChangePercent: viewMode === 'weekly' ? lastDay.plWeekToDatePercent :
+                                viewMode === 'monthly' ? lastDay.plMonthToDatePercent : 0,
+            
+            flowDepositAmount: totalDep,
+            flowWithdrawalAmount: totalWith
+        });
+    });
+
+    // Sort aggregated result
+    result.sort((a, b) => a.date.localeCompare(b.date));
+
+    // 3. Post-calc for Quarterly/Yearly changes if needed
+    return result.map((item, index) => {
+        if (viewMode === 'quarterly' || viewMode === 'yearly') {
+             const prevCapital = index > 0 ? result[index - 1].finalCapital : item.initialCapitalTotal;
+             const change = item.finalCapital - prevCapital;
+             const percent = prevCapital !== 0 ? (change / prevCapital) * 100 : 0;
+             return { ...item, chartChangeDollar: change, chartChangePercent: percent };
+        }
+        return item;
+    });
+
   }, [data, viewMode]);
 
   const tabs: { id: ViewMode; label: string }[] = [
@@ -75,20 +122,89 @@ export const Charts: React.FC<ChartsProps> = ({ data }) => {
 
   // Formatting X Axis based on view mode
   const formatXAxis = (val: string) => {
-    // val is actually the full date string of the entry (YYYY-MM-DD) because we are using CalculatedDay objects
     if (viewMode === 'daily') return val.slice(5); // MM-DD
-    if (viewMode === 'weekly') return val.slice(5); // Show date of Friday (end of week)
+    if (viewMode === 'weekly') return val.slice(5); 
     if (viewMode === 'monthly') return val.slice(0, 7); // YYYY-MM
-    if (viewMode === 'quarterly') return val.slice(0, 7); // Show Month of quarter end
-    if (viewMode === 'yearly') return val.slice(0, 4); // YYYY
+    if (viewMode === 'quarterly') return val.slice(0, 7); 
+    if (viewMode === 'yearly') return val.slice(0, 4); 
     return val;
+  };
+
+  // Custom Tooltip Component
+  const CustomTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
+    if (active && payload && payload.length) {
+      // Payload[0] is typically the Area chart data
+      // We need to find the full data object which contains our custom flow fields
+      const data = payload[0].payload;
+      
+      const changeDollar = data.chartChangeDollar;
+      const changePercent = data.chartChangePercent;
+      const isPositive = changeDollar >= 0;
+
+      const depositAmount = data.flowDepositAmount;
+      const withdrawalAmount = data.flowWithdrawalAmount;
+
+      // Better label formatting for tooltip
+      let displayLabel = label;
+      if (viewMode === 'weekly') displayLabel = data.weekId; 
+      
+      return (
+        <div className="bg-slate-800 border border-slate-600 p-3 rounded-lg shadow-xl text-sm min-w-[180px]">
+          {/* Row 1: Date */}
+          <p className="text-slate-400 text-xs mb-2 pb-1 border-b border-slate-700">{displayLabel}</p>
+          
+          {/* Cash Flow Section (Conditional) */}
+          {(depositAmount > 0 || withdrawalAmount > 0) && (
+              <div className="mb-2 pb-2 border-b border-slate-700 border-dashed">
+                  {depositAmount > 0 && (
+                      <div className="flex justify-between items-center text-emerald-400">
+                          <span className="text-xs uppercase font-bold">Depósito:</span>
+                          <span className="font-bold">+{formatCurrency(depositAmount)}</span>
+                      </div>
+                  )}
+                   {withdrawalAmount > 0 && (
+                      <div className="flex justify-between items-center text-rose-400">
+                          <span className="text-xs uppercase font-bold">Retiro:</span>
+                          <span className="font-bold">-{formatCurrency(withdrawalAmount)}</span>
+                      </div>
+                  )}
+              </div>
+          )}
+          
+          {/* Row 2: Final Capital */}
+          <div className="flex justify-between items-center mb-1">
+            <span className="text-slate-300">Capital Final:</span>
+            <span className="text-blue-400 font-bold ml-2">
+                {formatCurrency(data.finalCapital)}
+            </span>
+          </div>
+
+          {/* Row 3: Change $ */}
+          <div className="flex justify-between items-center mb-1">
+            <span className="text-slate-400">Cambio ($):</span>
+            <span className={`font-bold ml-2 ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {isPositive ? '+' : ''}{formatCurrency(changeDollar)}
+            </span>
+          </div>
+
+           {/* Row 4: Change % */}
+           <div className="flex justify-between items-center">
+            <span className="text-slate-400">Cambio (%):</span>
+            <span className={`font-bold ml-2 ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {isPositive ? '+' : ''}{formatPercent(changePercent)}
+            </span>
+          </div>
+        </div>
+      );
+    }
+    return null;
   };
 
   return (
     <Card title="Evolución del Capital" action={renderTabs}>
       <div className="h-[250px] w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={chartData}>
+          <ComposedChart data={chartData}>
             <defs>
               <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
@@ -110,18 +226,9 @@ export const Charts: React.FC<ChartsProps> = ({ data }) => {
                 tickFormatter={(val) => `$${val}`}
                 width={60}
             />
-            <Tooltip 
-                contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#f8fafc' }}
-                itemStyle={{ color: '#60a5fa' }}
-                formatter={(value: number) => [formatCurrency(value), 'Capital Final']}
-                labelFormatter={(label) => {
-                    // Find the data point to show context (like Week Label) if needed
-                    const item = chartData.find(d => d.date === label);
-                    if (viewMode === 'weekly' && item) return item.weekId;
-                    return label;
-                }}
-                labelStyle={{ color: '#94a3b8' }}
-            />
+            <Tooltip content={<CustomTooltip />} />
+            
+            {/* Main Area */}
             <Area 
                 type="monotone" 
                 dataKey="finalCapital" 
@@ -131,7 +238,7 @@ export const Charts: React.FC<ChartsProps> = ({ data }) => {
                 strokeWidth={2}
                 animationDuration={500}
             />
-          </AreaChart>
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
     </Card>
