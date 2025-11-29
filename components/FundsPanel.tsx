@@ -57,7 +57,10 @@ export const FundsPanel: React.FC<FundsPanelProps> = ({
               label: d.date,
               plDollar: 0, plPercent: 0, winRate: 0, tradeCount: 0, totalOperations: 0, // Dummies
               totalDeposits: d.deposit,
-              totalWithdrawals: d.withdrawal
+              totalWithdrawals: d.withdrawal,
+              // Fix: Added missing properties required by PeriodSummary interface
+              startCapital: d.initialCapitalDaily,
+              endCapital: d.finalCapital
           }));
           avgLabel = 'por Día';
           break;
