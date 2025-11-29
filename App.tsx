@@ -106,8 +106,13 @@ export default function App() {
   const yearlySummaries = useMemo(() => calculatePeriodSummaries(processedData, 'yearId'), [processedData]);
 
   const globalStats = useMemo(() => 
-    calculateGlobalStats(processedData, weeklySummaries, monthlySummaries), 
-  [processedData, weeklySummaries, monthlySummaries]);
+    calculateGlobalStats(
+        processedData, 
+        weeklySummaries, 
+        monthlySummaries,
+        config.totalInitialCapital // Pass the config value explicitly
+    ), 
+  [processedData, weeklySummaries, monthlySummaries, config.totalInitialCapital]);
 
   // Handlers
   const handleAddEntry = (date: string, finalCapital: number, deposit: number, withdrawal: number, notes?: string, tradeCount?: number) => {
@@ -350,7 +355,7 @@ export default function App() {
             }}
         />
 
-        {/* 9. FUNDS PANEL (Treasury) - MOVED BOTTOM & COLLAPSIBLE */}
+        {/* 9. Funds Panel (Treasury) - MOVED HERE AFTER TABLE */}
         <FundsPanel 
             stats={globalStats}
             weekly={weeklySummaries}

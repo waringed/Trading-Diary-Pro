@@ -189,10 +189,15 @@ export const calculatePeriodSummaries = (calculated: CalculatedDay[], periodKey:
   });
 };
 
-export const calculateGlobalStats = (days: CalculatedDay[], weeklySummaries: PeriodSummary[], monthlySummaries: PeriodSummary[]): GlobalStats => {
+export const calculateGlobalStats = (
+    days: CalculatedDay[], 
+    weeklySummaries: PeriodSummary[], 
+    monthlySummaries: PeriodSummary[],
+    baseInitialCapital: number
+): GlobalStats => {
   if (days.length === 0) {
     return {
-      currentCapital: 0, totalInitialCapital: 0, totalPLDollar: 0, totalPLPercent: 0,
+      currentCapital: 0, totalInitialCapital: baseInitialCapital, totalPLDollar: 0, totalPLPercent: 0,
       totalDeposits: 0, totalWithdrawals: 0, netCashFlow: 0,
       startDate: '-', durationWeeks: 0, durationMonths: 0, durationYears: 0,
       maxConsecutiveWins: 0, maxConsecutiveLosses: 0,
@@ -306,8 +311,8 @@ export const calculateGlobalStats = (days: CalculatedDay[], weeklySummaries: Per
 
   return {
     currentCapital: newestDay.finalCapital,
-    // totalInitialCapital now reflects the NET INVESTED CAPITAL (Initial + Flows)
-    totalInitialCapital: newestDay.initialCapitalTotal,
+    // Use the explicit baseInitialCapital from config instead of calculating running total
+    totalInitialCapital: baseInitialCapital,
     totalPLDollar: newestDay.plTotalToDateDollar,
     totalPLPercent: newestDay.plTotalToDatePercent,
     
