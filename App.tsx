@@ -336,17 +336,7 @@ export default function App() {
         {/* 7. Journal Wall (Notes) - MOVED UP */}
         <JournalWall data={processedData} />
 
-        {/* 8. FUNDS PANEL (Treasury) - MOVED DOWN */}
-        <FundsPanel 
-            stats={globalStats}
-            weekly={weeklySummaries}
-            monthly={monthlySummaries}
-            quarterly={quarterlySummaries}
-            yearly={yearlySummaries}
-            rawDays={processedData}
-        />
-
-        {/* 9. History Table (Raw Data) */}
+        {/* 8. History Table (Raw Data) */}
         <HistoryTable 
             data={processedData} 
             weekly={weeklySummaries}
@@ -358,6 +348,16 @@ export default function App() {
                 const original = entries.find(e => e.id === day.id);
                 if (original) setEditingEntry(original);
             }}
+        />
+
+        {/* 9. FUNDS PANEL (Treasury) - MOVED BOTTOM & COLLAPSIBLE */}
+        <FundsPanel 
+            stats={globalStats}
+            weekly={weeklySummaries}
+            monthly={monthlySummaries}
+            quarterly={quarterlySummaries}
+            yearly={yearlySummaries}
+            rawDays={processedData}
         />
 
       </main>

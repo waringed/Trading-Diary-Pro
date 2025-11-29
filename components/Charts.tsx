@@ -13,6 +13,7 @@ type ViewMode = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 
 export const Charts: React.FC<ChartsProps> = ({ data }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('daily');
+  const [isExpanded, setIsExpanded] = useState(true);
 
   // filter and aggregate data based on view mode
   const chartData = useMemo(() => {
@@ -94,27 +95,43 @@ export const Charts: React.FC<ChartsProps> = ({ data }) => {
     { id: 'yearly', label: 'Anual' },
   ];
 
-  const renderTabs = (
-    <div className="flex bg-slate-900 rounded-lg p-1">
-        {tabs.map(tab => (
-            <button
-            key={tab.id}
-            onClick={() => setViewMode(tab.id)}
-            className={`px-3 py-1 text-xs font-medium rounded transition-all ${
-                viewMode === tab.id 
-                ? 'bg-slate-700 text-white shadow' 
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-            >
-            {tab.label}
-            </button>
-        ))}
+  const renderHeaderAction = (
+    <div className="flex items-center gap-2">
+        {/* View Mode Tabs (Only show if expanded) */}
+        {isExpanded && (
+            <div className="flex bg-slate-900 rounded-lg p-1 overflow-x-auto">
+                {tabs.map(tab => (
+                    <button
+                    key={tab.id}
+                    onClick={() => setViewMode(tab.id)}
+                    className={`px-3 py-1 text-xs font-medium rounded transition-all whitespace-nowrap ${
+                        viewMode === tab.id 
+                        ? 'bg-slate-700 text-white shadow' 
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                    >
+                    {tab.label}
+                    </button>
+                ))}
+            </div>
+        )}
+
+        {/* Toggle Button */}
+        <button 
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="text-slate-400 hover:text-white transition-colors bg-slate-900 p-1.5 rounded-lg border border-slate-700"
+            title={isExpanded ? "Colapsar gráfica" : "Desplegar gráfica"}
+        >
+            <svg className={`w-5 h-5 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+        </button>
     </div>
   );
 
-  if (chartData.length < 2 && viewMode === 'daily') {
+  if (chartData.length < 2 && viewMode === 'daily' && isExpanded) {
     return (
-        <Card title="Evolución del Capital" action={renderTabs} className="flex items-center justify-center min-h-[200px]">
+        <Card title="Evolución del Capital" action={renderHeaderAction} className="flex items-center justify-center min-h-[200px]">
             <p className="text-slate-500 italic p-6">Registra al menos 2 días para ver el gráfico.</p>
         </Card>
     )
@@ -201,46 +218,52 @@ export const Charts: React.FC<ChartsProps> = ({ data }) => {
   };
 
   return (
-    <Card title="Evolución del Capital" action={renderTabs}>
-      <div className="h-[250px] w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={chartData}>
-            <defs>
-              <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-            <XAxis 
-                dataKey="date" 
-                stroke="#94a3b8" 
-                tick={{fontSize: 12}} 
-                tickFormatter={formatXAxis}
-                minTickGap={30}
-            />
-            <YAxis 
-                stroke="#94a3b8" 
-                tick={{fontSize: 12}}
-                domain={['auto', 'auto']}
-                tickFormatter={(val) => `$${val}`}
-                width={60}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            
-            {/* Main Area */}
-            <Area 
-                type="monotone" 
-                dataKey="finalCapital" 
-                stroke="#3b82f6" 
-                fillOpacity={1} 
-                fill="url(#colorValue)" 
-                strokeWidth={2}
-                animationDuration={500}
-            />
-          </ComposedChart>
-        </ResponsiveContainer>
-      </div>
+    <Card title="Evolución del Capital" action={renderHeaderAction}>
+      {isExpanded ? (
+          <div className="h-[250px] w-full animate-in fade-in slide-in-from-top-4 duration-300">
+            <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={chartData}>
+                <defs>
+                <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                <XAxis 
+                    dataKey="date" 
+                    stroke="#94a3b8" 
+                    tick={{fontSize: 12}} 
+                    tickFormatter={formatXAxis}
+                    minTickGap={30}
+                />
+                <YAxis 
+                    stroke="#94a3b8" 
+                    tick={{fontSize: 12}}
+                    domain={['auto', 'auto']}
+                    tickFormatter={(val) => `$${val}`}
+                    width={60}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                
+                {/* Main Area */}
+                <Area 
+                    type="monotone" 
+                    dataKey="finalCapital" 
+                    stroke="#3b82f6" 
+                    fillOpacity={1} 
+                    fill="url(#colorValue)" 
+                    strokeWidth={2}
+                    animationDuration={500}
+                />
+            </ComposedChart>
+            </ResponsiveContainer>
+        </div>
+      ) : (
+        <div className="text-center text-slate-500 text-sm italic py-2 cursor-pointer" onClick={() => setIsExpanded(true)}>
+            Haz clic para abrir el panel.
+        </div>
+      )}
     </Card>
   );
 };
